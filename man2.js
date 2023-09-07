@@ -1,17 +1,6 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-
-
-
 import { OpenAI } from "langchain/llms/openai";
 import { BufferMemory } from "langchain/memory";
 import { ConversationChain } from "langchain/chains";
@@ -23,6 +12,8 @@ import { CSVLoader } from "langchain/document_loaders/fs/csv";
 
 const loader1 = new CSVLoader("./dataset.csv");
 const loader2 = new CSVLoader("./delivery.csv");
+const loader3 = new CSVLoader("./areaCode.csv");  // New loader for third CSV
+const loader4 = new CSVLoader("./office_dataset.csv");  // New loader for fourth CSV
 
 async function processDocuments(loader, user_name) {
     const docs = await loader.load();
@@ -46,8 +37,10 @@ async function processDocuments(loader, user_name) {
 async function main() {
     const allDocs1 = await processDocuments(loader1, "User Name 1");
     const allDocs2 = await processDocuments(loader2, "User Name 2");
+    const allDocs3 = await processDocuments(loader3, "User Name 3"); // Process third CSV
+    const allDocs4 = await processDocuments(loader4, "User Name 4"); // Process fourth CSV
 
-    const allDocs = [...allDocs1, ...allDocs2];
+    const allDocs = [...allDocs1, ...allDocs2, ...allDocs3, ...allDocs4];
 
     const vectorStore = await HNSWLib.fromDocuments(allDocs, new OpenAIEmbeddings());
 
@@ -65,29 +58,18 @@ async function main() {
         memory: memory,
     });
 
-
-
     const response1 = await handleConversation("What is the sku of 1:8 Pagani Huayra Bc Bricks Assemble Car?", qaChain, conversationChain);
     console.log(response1);
 
     const response2 = await handleConversation("what is Shipping - Bay of Plenty deliveryPrice in weight-dl 79 ", qaChain, conversationChain);
     console.log(response2);
-
-
-
-app.post('/api/', async (req, res) => {
-
-
-
     
-
-
-
-})
-
-
-
-
+    // Queries for the new CSVs can be added here:
+    const response3 = await handleConversation("3177 codes charge", qaChain, conversationChain);
+    console.log(response3);
+    
+    const response4 = await handleConversation("previous all question you anylisis and tell me the summery", qaChain, conversationChain);
+    console.log(response4);
 }
 
 async function handleConversation(input, qaChain, conversationChain) {
@@ -108,9 +90,4 @@ async function handleConversation(input, qaChain, conversationChain) {
 
 main().catch(error => {
     console.error(error);
-});
-
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Backend server running on port ${port}`);
 });

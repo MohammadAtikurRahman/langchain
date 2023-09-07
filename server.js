@@ -2,16 +2,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import express from 'express';
-import axios from 'axios';
 import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-
-
-
 import { OpenAI } from "langchain/llms/openai";
 import { BufferMemory } from "langchain/memory";
 import { ConversationChain } from "langchain/chains";
@@ -21,8 +12,14 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { CSVLoader } from "langchain/document_loaders/fs/csv";
 
+const app = express();
+
 const loader1 = new CSVLoader("./dataset.csv");
 const loader2 = new CSVLoader("./delivery.csv");
+// ... Add more loaders for additional CSVs ...
+
+app.use(cors());
+app.use(express.json());
 
 async function processDocuments(loader, user_name) {
     const docs = await loader.load();
@@ -43,16 +40,17 @@ async function processDocuments(loader, user_name) {
     return allDocs;
 }
 
-async function main() {
+let qaChain, conversationChain;
+
+async function setupChains() {
     const allDocs1 = await processDocuments(loader1, "User Name 1");
     const allDocs2 = await processDocuments(loader2, "User Name 2");
-
     const allDocs = [...allDocs1, ...allDocs2];
 
     const vectorStore = await HNSWLib.fromDocuments(allDocs, new OpenAIEmbeddings());
 
     const qaModel = new OpenAI({ temperature: 0 });
-    const qaChain = new RetrievalQAChain({
+    qaChain = new RetrievalQAChain({
         combineDocumentsChain: loadQAStuffChain(qaModel),
         retriever: vectorStore.asRetriever(),
         returnSourceDocuments: true,
@@ -60,37 +58,13 @@ async function main() {
 
     const conversationModel = new OpenAI({});
     const memory = new BufferMemory();
-    const conversationChain = new ConversationChain({
+    conversationChain = new ConversationChain({
         llm: conversationModel,
         memory: memory,
     });
-
-
-
-    const response1 = await handleConversation("What is the sku of 1:8 Pagani Huayra Bc Bricks Assemble Car?", qaChain, conversationChain);
-    console.log(response1);
-
-    const response2 = await handleConversation("what is Shipping - Bay of Plenty deliveryPrice in weight-dl 79 ", qaChain, conversationChain);
-    console.log(response2);
-
-
-
-app.post('/api/', async (req, res) => {
-
-
-
-    
-
-
-
-})
-
-
-
-
 }
 
-async function handleConversation(input, qaChain, conversationChain) {
+async function handleConversation(input) {
     const resFromQAChain = await qaChain.call({ query: input });
 
     if (resFromQAChain.text && resFromQAChain.text.trim() !== '') {
@@ -106,11 +80,23 @@ async function handleConversation(input, qaChain, conversationChain) {
     return "Unable to find an answer.";
 }
 
-main().catch(error => {
-    console.error(error);
+app.post('/api/', async (req, res) => {
+    const message = req.body.message;
+
+    if (message) {
+        const response = await handleConversation(message);
+        res.json({ botResponse: "\n\n" + response });
+        return;
+    }
+
+    res.status(400).send({ error: 'Message is required!' });
 });
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Backend server running on port ${port}`);
+const PORT = 5000;
+setupChains().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}).catch(error => {
+    console.error("Failed to setup chains:", error);
 });
