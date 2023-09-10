@@ -107,8 +107,14 @@ app.post("/api/", async (req, res) => {
     const demoResponse = await demoChain.call({ input: message });
     console.log("Demo Chain Response:", demoResponse);
 
-    const combinedResponse = "\n\n" + response;
-    res.json({ botResponse: combinedResponse });
+    const dataset_response = response;
+
+
+    console.log("Demo Dataset Response:", dataset_response);
+
+
+
+    res.json({ botResponse: "\n\n" + "Dataset:" +dataset_response + "\n\n" + "System:" +demoResponse.response });
     return;
   }
 
