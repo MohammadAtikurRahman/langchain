@@ -16,8 +16,8 @@ import { HumanMessage, SystemMessage } from "langchain/schema";
 
 const app = express();
 
-const loader1 = new CSVLoader("./dataset.csv");
-const loader2 = new CSVLoader("./areaCode.csv");
+const loader1 = new CSVLoader("./datset/dataset.csv");
+const loader2 = new CSVLoader("./datset/areaCode.csv");
 // ... Add more loaders for additional CSVs ...
 
 app.use(cors());
@@ -90,7 +90,11 @@ async function handleConversation(input) {
 
   return "Unable to find an answer.";
 }
-const chat = new ChatOpenAI();
+//const chat = new ChatOpenAI();
+
+// Move these outside the endpoint to maintain a single, persistent instance across requests.
+const modelForDemo = new OpenAI({});
+const memoryForDemo = new BufferMemory();
 
 app.post("/api/", async (req, res) => {
   const message = req.body.message;
@@ -98,26 +102,14 @@ app.post("/api/", async (req, res) => {
   if (message) {
     const response = await handleConversation(message);
 
-    if (message.includes("price")) {
-      console.log("1st resposne:", response);
+    // Use the persistent demoChain for conversation context.
+    const demoChain = new ConversationChain({ llm: modelForDemo, memory: memoryForDemo });
+    const demoResponse = await demoChain.call({ input: message });
+    console.log("Demo Chain Response:", demoResponse);
 
-      const response2 = await chat.call([
-        new SystemMessage(
-          "You are a helpful assistant that just ask what is your delivery location"
-        ),
-        new HumanMessage("Say grettings and ask what is your locataion? "),
-      ]);
-
-      console.log(response2);
-
-      res.json({ botResponse: "\n\n" + response + "\n\n" + response2.content });
-      return;
-    } else {
-      console.log("2nd resposne:", response);
-
-      res.json({ botResponse: "\n\n" + response });
-      return;
-    }
+    const combinedResponse = "\n\n" + response;
+    res.json({ botResponse: combinedResponse });
+    return;
   }
 
   res.status(400).send({ error: "Message is required!" });
