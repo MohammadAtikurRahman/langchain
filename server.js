@@ -4,7 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import { OpenAI } from "langchain/llms/openai";
-import { BufferMemory } from "langchain/memory";
+import { BufferMemory, ChatMessageHistory } from "langchain/memory";
 import { ConversationChain } from "langchain/chains";
 import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
 import { CharacterTextSplitter } from "langchain/text_splitter";
@@ -73,28 +73,33 @@ async function handleConversation(input) {
   const resFromQAChain = await qaChain.call({ query: input });
 
   if (resFromQAChain.text && resFromQAChain.text.trim() !== "") {
-    return resFromQAChain.text;
+    chatHistoryForDemo.addUserMessage(input);  // Save user input to chat history
+    chatHistoryForDemo.addAIChatMessage(resFromQAChain.text);  // Save AI response to chat history
+    return resFromQAChain;
   }
 
-  const resFromConversationChain = await conversationChain.call({
-    input: input,
-  });
+  const resFromConversationChain = await conversationChain.call({ input: input });
 
   if (
     resFromConversationChain.response &&
     resFromConversationChain.response.text &&
     resFromConversationChain.response.text.trim() !== ""
   ) {
-    return resFromConversationChain.response.text;
+    chatHistoryForDemo.addUserMessage(input);  // Save user input to chat history
+    chatHistoryForDemo.addAIChatMessage(resFromConversationChain.response.text);  // Save AI response to chat history
+    return resFromConversationChain;
   }
 
-  return "Unable to find an answer.";
+  return { text: "Unable to find an answer." };
 }
+
 //const chat = new ChatOpenAI();
 
 // Move these outside the endpoint to maintain a single, persistent instance across requests.
 const modelForDemo = new OpenAI({});
-const memoryForDemo = new BufferMemory();
+const chatHistoryForDemo = new ChatMessageHistory();
+const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
+
 
 app.post("/api/", async (req, res) => {
   const message = req.body.message;
@@ -110,11 +115,11 @@ app.post("/api/", async (req, res) => {
     const dataset_response = response;
 
 
-    console.log("Demo Dataset Response:", dataset_response);
+    console.log("Demo Dataset Response:", dataset_response.text);
 
+    const final_result= dataset_response.text;
 
-
-    res.json({ botResponse: "\n\n" + "Dataset:" +dataset_response + "\n\n" + "System:" +demoResponse.response });
+    res.json({ botResponse: "\n\n" + "Dataset:" +final_result + "\n\n" + "System:" +demoResponse.response });
     return;
   }
 
