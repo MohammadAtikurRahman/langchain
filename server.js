@@ -13,6 +13,11 @@ import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { CSVLoader } from "langchain/document_loaders/fs/csv";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { HumanMessage, SystemMessage } from "langchain/schema";
+// Import the required modules using ES6 module syntax
+import fs from "fs";
+import csv from "csv-parser";
+
+// Your code here
 
 const app = express();
 
@@ -73,20 +78,22 @@ async function handleConversation(input) {
   const resFromQAChain = await qaChain.call({ query: input });
 
   if (resFromQAChain.text && resFromQAChain.text.trim() !== "") {
-    chatHistoryForDemo.addUserMessage(input);  // Save user input to chat history
-    chatHistoryForDemo.addAIChatMessage(resFromQAChain.text);  // Save AI response to chat history
+    chatHistoryForDemo.addUserMessage(input); // Save user input to chat history
+    chatHistoryForDemo.addAIChatMessage(resFromQAChain.text); // Save AI response to chat history
     return resFromQAChain;
   }
 
-  const resFromConversationChain = await conversationChain.call({ input: input });
+  const resFromConversationChain = await conversationChain.call({
+    input: input,
+  });
 
   if (
     resFromConversationChain.response &&
     resFromConversationChain.response.text &&
     resFromConversationChain.response.text.trim() !== ""
   ) {
-    chatHistoryForDemo.addUserMessage(input);  // Save user input to chat history
-    chatHistoryForDemo.addAIChatMessage(resFromConversationChain.response.text);  // Save AI response to chat history
+    chatHistoryForDemo.addUserMessage(input); // Save user input to chat history
+    chatHistoryForDemo.addAIChatMessage(resFromConversationChain.response.text); // Save AI response to chat history
     return resFromConversationChain;
   }
 
@@ -100,34 +107,46 @@ const modelForDemo = new OpenAI({});
 const chatHistoryForDemo = new ChatMessageHistory();
 const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
 
-
 app.post("/api/", async (req, res) => {
-  const message = req.body.message;
+  let message = req.body.message;
+
+  let promptPrice = "and";
+  if (message.includes("price")) {
+    message = message + " " + promptPrice;
+    console.log("prompt", message);
+  }
 
   if (message) {
     const response = await handleConversation(message);
 
     // Use the persistent demoChain for conversation context.
-    const demoChain = new ConversationChain({ llm: modelForDemo, memory: memoryForDemo });
+    const demoChain = new ConversationChain({
+      llm: modelForDemo,
+      memory: memoryForDemo,
+    });
     const demoResponse = await demoChain.call({ input: message });
     console.log("Demo Chain Response:", demoResponse);
 
     const dataset_response = response;
 
-
     console.log("Demo Dataset Response:", dataset_response.text);
 
-    const final_result= dataset_response.text;
+    const final_result = dataset_response.text;
 
-    res.json({ botResponse: "\n\n" + "Dataset:" +final_result + "\n\n" + "System:" +demoResponse.response });
+    res.json({
+      botResponse:
+        "\n\n" +
+        "Dataset:" +
+        final_result +
+        "\n\n" +
+        "System:" +
+        demoResponse.response,
+    });
     return;
   }
 
   res.status(400).send({ error: "Message is required!" });
 });
-
-
-
 
 const PORT = 5000;
 setupChains()
