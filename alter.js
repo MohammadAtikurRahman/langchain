@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
 dotenv.config();
+import { LLMChain, PromptTemplate } from "langchain";
 
 import express from "express";
 import cors from "cors";
@@ -16,20 +17,17 @@ import { HumanMessage, SystemMessage } from "langchain/schema";
 import fs from "fs";
 import csv from "csv-parser";
 
-
 const app = express();
 const loader1 = new CSVLoader("./datset/dataset.csv");
 const loader2 = new CSVLoader("./datset/areaCode.csv");
 const loader3 = new CSVLoader("./datset/delivery.csv");
 
-
-let deliveryData = []; 
+let deliveryData = [];
 const deliveryFilePath = "./datset/delivery.csv";
 
 fs.createReadStream(deliveryFilePath)
   .pipe(csv())
   .on("data", (row) => {
-    // Store each row in the deliveryData array as JSON
     deliveryData.push({
       location: row.location,
       rules: row.rules,
@@ -114,6 +112,10 @@ async function setupChains() {
   });
 }
 
+
+
+
+
 async function handleConversation(input) {
   const resFromQAChain = await qaChain.call({ query: input });
 
@@ -144,61 +146,8 @@ const modelForDemo = new OpenAI({});
 const chatHistoryForDemo = new ChatMessageHistory();
 const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
 
-function augmentMessageWithInstructions(originalMessage) {
-  if (
-    originalMessage.includes("price") &&
-    !originalMessage.includes("previous")
-  ) {
-    return (
-      originalMessage +
-      "and this product name also Give a short answer with just the weight"
-    );
-  }
-
-  // if (/\d+/.test(originalMessage)) {
-  //   const matchedArea = areaCode.find((d) => d.area_code === originalMessage);
-  //   originalMessage = matchedArea;
-  //   console.log("inside the areacode", originalMessage?.area_orginal);
-  //   return (
-  //     "what " +
-  //     originalMessage?.area_orginal +
-  //     " areacode_charge? and this areacode_charge added with previous product's price"
-  //   );
-  // }
-
-  // const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
-  // const matcharea_original = matchedArea.area_orginal;
-  // if (originalMessage.includes(matcharea_original)) {
-  //   originalMessage = matcharea_original;
-  //   return (
-  //     "what " +
-  //     originalMessage +
-  //     " areacode_charge? and this areacode_charge added with previous product's price"
-  //   );
-  // }
-
-  return originalMessage; //
-}
-
-function addCustomTextToResponse(datasetResponse, demoResponse) {
-  let customText = "";
-
-  if (datasetResponse.includes("price") && !datasetResponse.includes("total")) {
-    customText += "What is your location ?";
-  }
-
-  if (demoResponse.includes("total price")) {
-    customText += "any question ?";
-  }
-
-  return customText;
-}
-
 app.post("/api/", async (req, res) => {
   let message = req.body.message;
-
-  message = augmentMessageWithInstructions(message);
-
   console.log("prompt message", message);
 
   if (message) {
@@ -209,18 +158,8 @@ app.post("/api/", async (req, res) => {
       memory: memoryForDemo,
     });
     const demoResponse = await demoChain.call({ input: message });
-    //  console.log("Demo Chain Response:", demoResponse);
-
     const dataset_response = response;
-
-    //  console.log("Demo Dataset Response:", dataset_response.text);
-
     const final_result = dataset_response.text;
-
-    const customText = addCustomTextToResponse(
-      final_result,
-      demoResponse.response
-    );
 
     res.json({
       botResponse:
@@ -229,15 +168,20 @@ app.post("/api/", async (req, res) => {
         final_result +
         "\n\n" +
         "System:" +
-        demoResponse.response +
-        "\n\n" +
-        customText,
+        demoResponse.response,
     });
     return;
   }
 
   res.status(400).send({ error: "Message is required!" });
 });
+
+
+
+
+
+
+
 
 const PORT = 5000;
 setupChains()
