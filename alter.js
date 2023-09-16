@@ -2,10 +2,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 import { LLMChain, PromptTemplate } from "langchain";
 
+
 import express from "express";
 import cors from "cors";
 import { OpenAI } from "langchain/llms/openai";
-import { BufferMemory, ChatMessageHistory } from "langchain/memory";
+import { BufferMemory, ChatMessageHistory , EntityMemory,
+  ENTITY_MEMORY_CONVERSATION_TEMPLATE,} from "langchain/memory";
 import { ConversationChain } from "langchain/chains";
 import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
 import { CharacterTextSplitter } from "langchain/text_splitter";
@@ -18,9 +20,8 @@ import fs from "fs";
 import csv from "csv-parser";
 
 const app = express();
-const loader1 = new CSVLoader("./datset/dataset.csv");
+const loader1 = new CSVLoader("./datset/all_product.csv");
 const loader2 = new CSVLoader("./datset/areaCode.csv");
-const loader3 = new CSVLoader("./datset/delivery.csv");
 
 let deliveryData = [];
 const deliveryFilePath = "./datset/delivery.csv";
@@ -78,6 +79,7 @@ async function processDocuments(loader, user_name) {
     });
     allDocs.push(...createdDocs);
   }
+
   return allDocs;
 }
 
@@ -88,9 +90,7 @@ async function setupChains() {
 
   const allDocs2 = await processDocuments(loader2, "areacode");
 
-  const allDocs3 = await processDocuments(loader3, "delivery-method");
-
-  const allDocs = [...allDocs1, ...allDocs2, ...allDocs3];
+  const allDocs = [...allDocs1, ...allDocs2];
 
   const vectorStore = await HNSWLib.fromDocuments(
     allDocs,
@@ -111,8 +111,6 @@ async function setupChains() {
     memory: memory,
   });
 }
-
-
 
 
 
@@ -146,10 +144,9 @@ const modelForDemo = new OpenAI({});
 const chatHistoryForDemo = new ChatMessageHistory();
 const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
 
+
 app.post("/api/", async (req, res) => {
   let message = req.body.message;
-  console.log("prompt message", message);
-
   if (message) {
     const response = await handleConversation(message);
 
@@ -160,7 +157,6 @@ app.post("/api/", async (req, res) => {
     const demoResponse = await demoChain.call({ input: message });
     const dataset_response = response;
     const final_result = dataset_response.text;
-
     res.json({
       botResponse:
         "\n\n" +
@@ -172,16 +168,8 @@ app.post("/api/", async (req, res) => {
     });
     return;
   }
-
   res.status(400).send({ error: "Message is required!" });
 });
-
-
-
-
-
-
-
 
 const PORT = 5000;
 setupChains()

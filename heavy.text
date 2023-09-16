@@ -1,0 +1,59 @@
+ // if (/\d+/.test(originalMessage)) {
+  //   const matchedArea = areaCode.find((d) => d.area_code === originalMessage);
+  //   originalMessage = matchedArea;
+  //   console.log("inside the areacode", originalMessage?.area_orginal);
+  //   return (
+  //     "what is " +
+  //     originalMessage?.area_orginal +
+  //     " areacode_charge? what is delivery price which is based on previous product weight   please calculate (Total cost = areacode_charge + deliveryPrice) "
+  //   );
+  // }
+
+  // const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
+  // const matcharea_original = matchedArea.area_orginal;
+  // if (originalMessage.includes(matcharea_original)) {
+  //   originalMessage = matcharea_original;
+  //   return (
+  //     "what is " +
+  //     originalMessage +
+  //     " areacode_charge? and plese sum this areacode_charge added with previous product's price"
+  //   );
+  // }
+    const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
+  const matcharea_original = matchedArea.area_orginal;
+  if (originalMessage.includes(matcharea_original)) {
+    originalMessage = matcharea_original;
+    return (
+      "what is " +
+      originalMessage +
+      "'s areacode_charge and  areacode_charge is his row wise'" +
+      originalMessage +
+      " area_based_shipping-method' for the " +
+      savedProductName +
+      ". The product has a weight-based shipping delivery charge, which can be determined by matching it with the 'area_based_shipping-method.' This matching process allows us to obtain the delivery price based on the weight of the item. Additionally, the '" +
+      originalMessage +
+      " areacode_charge' provides a specific value related to the area code charge. The final shipping cost ('e') is calculated by combining the values obtained from both the 'areacode_charge' and the 'area_based_shipping-method.' Could you please elaborate on how these components contribute to determining the overall shipping cost for this product?"
+    );
+
+      
+const chargeAsNumber = parseFloat(matcharea_charge);
+const valueAsNumber = parseFloat(valueof);
+const productpricetotall = parseFloat(valueofproduct);
+const totalCharge = chargeAsNumber + valueAsNumber;
+const totall_main_price = productpricetotall+totalCharge;
+
+
+   let messageString = "AREA CHARGE: " +matcharea_charge+ "DELIVERY CHARGE:" +valueof+ "SHIPPING CHARGE: " +totalCharge+ "PRODUCT PRICE: " + valueofproduct +" GRAND TOTAL: " +totall_main_price;
+
+
+  if (originalMessage.includes(matcharea_original)) {
+
+    originalMessage = matcharea_original;
+
+
+    // return originalMessage +" "+ matcharea_delivery + " " +matcharea_charge+ " " +valueof+ " " +valueofproduct
+
+    return originalMessage+" and just show this nothing you have to change just show this " +messageString
+  }
+
+

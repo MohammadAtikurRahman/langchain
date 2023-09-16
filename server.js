@@ -15,28 +15,24 @@ import { ChatOpenAI } from "langchain/chat_models/openai";
 import { HumanMessage, SystemMessage } from "langchain/schema";
 import fs from "fs";
 import csv from "csv-parser";
-
+import stringSimilarity from 'string-similarity';
 
 const app = express();
-const loader1 = new CSVLoader("./datset/dataset.csv");
+const loader1 = new CSVLoader("./datset/all_product.csv");
 const loader2 = new CSVLoader("./datset/areaCode.csv");
-const loader3 = new CSVLoader("./datset/delivery.csv");
 
-
-let deliveryData = []; 
-const deliveryFilePath = "./datset/delivery.csv";
+let product_data = [];
+const deliveryFilePath = "./datset/all_product.csv";
 
 fs.createReadStream(deliveryFilePath)
   .pipe(csv())
   .on("data", (row) => {
-    // Store each row in the deliveryData array as JSON
-    deliveryData.push({
-      location: row.location,
-      rules: row.rules,
-      weight_dl: row["weight-dl"],
-      operator: row.operator,
-      deliveryPrice: row.deliveryPrice,
-    });
+    // Dynamically create an object with all columns from the CSV
+    let rowData = {};
+    for (let key in row) {
+      rowData[key] = row[key];
+    }
+    product_data.push(rowData);
   })
   .on("end", () => {
     console.log("CSV file processing finished.");
@@ -50,11 +46,11 @@ fs.createReadStream(areaCodePath)
   .on("data", (row) => {
     // Store each row in the deliveryData array as JSON
     areaCode.push({
-      delivery: row.delivery,
       area_code: row.area_code,
       area_orginal: row.area_orginal,
-      region: row.region,
+      delivery_method: row.delivery_method,
       areacode_charge: row.areacode_charge,
+      delivery_date: row.delivery_date,
     });
   })
   .on("end", () => {
@@ -64,11 +60,13 @@ fs.createReadStream(areaCodePath)
 app.use(cors());
 app.use(express.json());
 
+
+var messageString;
 async function processDocuments(loader, user_name) {
   const docs = await loader.load();
   const splitter = new CharacterTextSplitter({
-    chunkSize: 3036,
-    chunkOverlap: 2000,
+    chunkSize: 10000, // or even lower depending on your data
+    chunkOverlap: 7000,
   });
   const allDocs = [];
   for (const doc of docs) {
@@ -90,9 +88,7 @@ async function setupChains() {
 
   const allDocs2 = await processDocuments(loader2, "areacode");
 
-  const allDocs3 = await processDocuments(loader3, "delivery-method");
-
-  const allDocs = [...allDocs1, ...allDocs2, ...allDocs3];
+  const allDocs = [...allDocs1, ...allDocs2];
 
   const vectorStore = await HNSWLib.fromDocuments(
     allDocs,
@@ -144,58 +140,147 @@ const modelForDemo = new OpenAI({});
 const chatHistoryForDemo = new ChatMessageHistory();
 const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
 
+let savedProductName = "";
+
 function augmentMessageWithInstructions(originalMessage) {
+  const naming2 = product_data; // This is an array of product data
+
+  const productNames = naming2.map(product => product.product_name);
+
+let detectedProductName = productNames.find(productName => originalMessage.includes(productName));
+
+if (detectedProductName) {
+    savedProductName = detectedProductName;
+}
+
+console.log("Product Name:", savedProductName);
+
+
+
+
+
   if (
-    originalMessage.includes("price") &&
-    !originalMessage.includes("previous")
+    originalMessage.includes("shipping") &&
+    originalMessage.includes("charge")
   ) {
     return (
       originalMessage +
-      "and this product name also Give a short answer with just the weight"
+      " please keep the weight value in your memory and for this question don't reply, Just Display This message: What is your Areacode or Location? "
     );
   }
 
-  // if (/\d+/.test(originalMessage)) {
-  //   const matchedArea = areaCode.find((d) => d.area_code === originalMessage);
-  //   originalMessage = matchedArea;
-  //   console.log("inside the areacode", originalMessage?.area_orginal);
-  //   return (
-  //     "what " +
-  //     originalMessage?.area_orginal +
-  //     " areacode_charge? and this areacode_charge added with previous product's price"
-  //   );
-  // }
+  const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
+  const matcharea_original = matchedArea?.area_orginal;
 
-  // const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
-  // const matcharea_original = matchedArea.area_orginal;
-  // if (originalMessage.includes(matcharea_original)) {
-  //   originalMessage = matcharea_original;
-  //   return (
-  //     "what " +
-  //     originalMessage +
-  //     " areacode_charge? and this areacode_charge added with previous product's price"
-  //   );
-  // }
 
-  return originalMessage; //
-}
 
-function addCustomTextToResponse(datasetResponse, demoResponse) {
-  let customText = "";
 
-  if (datasetResponse.includes("price") && !datasetResponse.includes("total")) {
-    customText += "What is your location ?";
+
+  const matcharea_charge = matchedArea?.areacode_charge;
+
+  const matcharea_delivery = matchedArea?.delivery_method;
+  const naming = product_data; // This is an array of product data
+
+  const foundProduct = naming.find(
+    (product) => product.product_name.trim() === savedProductName.trim()
+  );
+
+
+
+  const deliverydate = matchedArea?.delivery_date;
+  // console.log("delivery date", deliverydate);
+
+  const today = new Date();
+
+  // Parse the delivery dates
+  const deliveryDates = deliverydate?.split(", ");
+
+  // Convert string dates into date objects
+  const deliveryDateObjects = deliveryDates?.map((dateStr) => new Date(dateStr));
+
+  // Sort delivery dates based on proximity to today's date
+  const sortedDates = deliveryDateObjects?.filter((date) => date >= today)
+    .sort((a, b) => a - b);
+
+  // Get the closest three dates
+  const closestThreeDates = sortedDates?.slice(0, 3);
+
+  // console.log("Closest three dates:", closestThreeDates);
+
+  if (foundProduct) {
+    console.log("Found Product:", foundProduct.product_name);
+    console.log("Found Product:", foundProduct.weight);
+    console.log("Found Product:", foundProduct.price);
+
+    var valueofproduct = foundProduct.price;
+  } else {
+    console.log("Product not found.");
+  }
+  const transformedKey =
+    "weight_based_shipping - " +
+    matcharea_delivery?.toLowerCase().replace("shipping - ", "") +
+    "_delivery";
+
+  for (let product of naming) {
+    if (product?.weight === foundProduct?.weight) {
+      // matching by weight
+      if (product.hasOwnProperty(transformedKey)) {
+        var valueof = product[transformedKey];
+
+        // console.log(`For product '${product.product_name}', with weight '${product.weight}', the matched column for '${matcharea_delivery}' is '${transformedKey}' and its value is '${product[transformedKey]}'`);
+      } else {
+        console.log(
+          `For product '${product.product_name}', with weight '${product.weight}', no match found for '${matcharea_delivery}'`
+        );
+      }
+    }
   }
 
-  if (demoResponse.includes("total price")) {
-    customText += "any question ?";
+  const chargeAsNumber = parseFloat(matcharea_charge);
+  const valueAsNumber = parseFloat(valueof);
+  const productpricetotall = parseFloat(valueofproduct);
+  const totalCharge = chargeAsNumber + valueAsNumber;
+  const totall_main_price = productpricetotall + totalCharge;
+
+   messageString = "PRODUCT PRICE: " + valueofproduct + " GRAND TOTAL: " + totall_main_price;
+
+  if (originalMessage.includes(matcharea_original)) {
+    originalMessage = matcharea_original;
+
+    // return originalMessage +" "+ matcharea_delivery + " " +matcharea_charge+ " " +valueof+ " " +valueofproduct
+
+    return (
+      originalMessage +
+      " and this value is AREA CHARGE " +
+      matcharea_charge +
+      " this value is DELIVERY CHARGE " +
+      valueof +
+      " added this AREA CHARGE and DELIVERY CHARGE" +
+      messageString +
+      " and also this is show it's formate" +
+      closestThreeDates +
+      "this is show just it's formate"
+    );
   }
 
-  return customText;
+  return originalMessage;
 }
 
 app.post("/api/", async (req, res) => {
   let message = req.body.message;
+
+
+  const codeprice = areaCode.find((d) => d.area_code === message);
+
+
+  if (codeprice?.area_orginal) {
+    message = codeprice.area_orginal;
+   }
+
+
+
+
+
 
   message = augmentMessageWithInstructions(message);
 
@@ -217,21 +302,12 @@ app.post("/api/", async (req, res) => {
 
     const final_result = dataset_response.text;
 
-    const customText = addCustomTextToResponse(
-      final_result,
-      demoResponse.response
-    );
-
     res.json({
       botResponse:
         "\n\n" +
-        "Dataset:" +
-        final_result +
-        "\n\n" +
         "System:" +
         demoResponse.response +
-        "\n\n" +
-        customText,
+        "And " +messageString
     });
     return;
   }
