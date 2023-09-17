@@ -15,7 +15,7 @@ import { ChatOpenAI } from "langchain/chat_models/openai";
 import { HumanMessage, SystemMessage } from "langchain/schema";
 import fs from "fs";
 import csv from "csv-parser";
-import stringSimilarity from "string-similarity";
+import * as stringSimilarity from 'string-similarity';
 
 const app = express();
 const loader1 = new CSVLoader("./datset/all_product.csv");
@@ -142,23 +142,33 @@ const memoryForDemo = new BufferMemory({ chatHistory: chatHistoryForDemo });
 let savedProductName = "";
 
 function augmentMessageWithInstructions(originalMessage) {
+  
   const naming2 = product_data; // This is an array of product data
-  const productNames = naming2.map((product) => product.product_name);
-  let detectedProductName = productNames.find((productName) =>
-    originalMessage.includes(productName)
-  );
 
-  if (detectedProductName) {
-    savedProductName = detectedProductName;
+  const matches = stringSimilarity.findBestMatch(originalMessage, naming2.map(d => d.product_name)  );
+  let matchedItems = []; 
+  if (matches.bestMatch.rating > 0.3) {
+    const matchedItem = naming2[matches.bestMatchIndex];
+    matchedItems.push(matchedItem);
+  } else {
+    console.log('No match found');
   }
+  console.log("matched item:", matchedItems[0]?.product_name);   
 
-  console.log("Product Name:", savedProductName);
+  if (matchedItems[0]?.product_name) {
+    savedProductName = matchedItems[0]?.product_name;
+}
+
+
+
+  
 
   //Shipping Charge Case:
 
   if (
     originalMessage.includes("shipping") &&
-    originalMessage.includes("charge")
+    originalMessage.includes("charge") || originalMessage.includes("cost")
+
   ) {
     return (
       originalMessage +
@@ -207,6 +217,7 @@ function augmentMessageWithInstructions(originalMessage) {
     console.log("Found Product:", foundProduct.price);
 
     var valueofproduct = foundProduct.price;
+
   } else {
     console.log("Product not found.");
   }
@@ -236,10 +247,9 @@ function augmentMessageWithInstructions(originalMessage) {
   const totalCharge = chargeAsNumber + valueAsNumber;
   const totall_main_price = productpricetotall + totalCharge;
 
-  messageString =
-    "AREA CHARGE: "+matcharea_charge +" DELIVERY CHARGE: "+ valueof+ " SHIPPING CHARGE: "+ totalCharge +" PRODUCT PRICE: " + valueofproduct + " GRAND TOTAL: " + totall_main_price;
+  messageString =foundProduct?.product_name+ " for this " +"AREA CHARGE: "+matcharea_charge +" DELIVERY CHARGE: "+ valueof+ " SHIPPING CHARGE: "+ totalCharge +" PRODUCT PRICE: " + valueofproduct + " GRAND TOTAL: " + totall_main_price;
 
-
+ // console.log("messageString",messageString);
 
   //AREA original and AREA CODE  
   if (originalMessage.includes(matcharea_original)) {
@@ -261,6 +271,9 @@ function augmentMessageWithInstructions(originalMessage) {
     );
   }
 
+
+
+
   return originalMessage;
 }
 
@@ -275,7 +288,6 @@ app.post("/api/", async (req, res) => {
 
   message = augmentMessageWithInstructions(message);
 
-  console.log("prompt message", message);
 
   if (message) {
     const response = await handleConversation(message);
@@ -285,24 +297,27 @@ app.post("/api/", async (req, res) => {
       memory: memoryForDemo,
     });
     const demoResponse = await demoChain.call({ input: message });
-    //  console.log("Demo Chain Response:", demoResponse);
 
     const dataset_response = response;
 
-    //  console.log("Demo Dataset Response:", dataset_response.text);
 
     const final_result = dataset_response.text;
 
-    res.json({
-      botResponse:
-        +(messageString ? "And " + messageString : "") +
-        "\n\n" +
-        "System:" +
-        demoResponse.response+
-        "\n\n" +
-        "Dataset: " + final_result
+    console.log("messageString before",messageString);
 
+
+    let botResponse = "";
+
+    if (messageString) {
+        botResponse += "\n\n" + messageString;
+    }
+    botResponse += "\n\nSystem:" + demoResponse.response;
+    botResponse += "\n\nDataset: " + final_result;
+    
+    res.json({
+        botResponse: botResponse
     });
+    
 
     return;
   }

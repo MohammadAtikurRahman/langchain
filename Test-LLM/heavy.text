@@ -57,3 +57,12 @@ const totall_main_price = productpricetotall+totalCharge;
   }
 
 
+
+  // const productNames = naming2.map((product) => product.product_name);
+  // let detectedProductName = productNames.find((productName) =>
+  //   originalMessage.includes(productName)
+  // );
+
+  // if (detectedProductName) {
+  //   savedProductName = detectedProductName;
+  // }
