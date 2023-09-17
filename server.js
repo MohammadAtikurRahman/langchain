@@ -15,7 +15,7 @@ import { ChatOpenAI } from "langchain/chat_models/openai";
 import { HumanMessage, SystemMessage } from "langchain/schema";
 import fs from "fs";
 import csv from "csv-parser";
-import stringSimilarity from 'string-similarity';
+import stringSimilarity from "string-similarity";
 
 const app = express();
 const loader1 = new CSVLoader("./datset/all_product.csv");
@@ -59,7 +59,6 @@ fs.createReadStream(areaCodePath)
 
 app.use(cors());
 app.use(express.json());
-
 
 var messageString;
 async function processDocuments(loader, user_name) {
@@ -144,20 +143,18 @@ let savedProductName = "";
 
 function augmentMessageWithInstructions(originalMessage) {
   const naming2 = product_data; // This is an array of product data
+  const productNames = naming2.map((product) => product.product_name);
+  let detectedProductName = productNames.find((productName) =>
+    originalMessage.includes(productName)
+  );
 
-  const productNames = naming2.map(product => product.product_name);
-
-let detectedProductName = productNames.find(productName => originalMessage.includes(productName));
-
-if (detectedProductName) {
+  if (detectedProductName) {
     savedProductName = detectedProductName;
-}
+  }
 
-console.log("Product Name:", savedProductName);
+  console.log("Product Name:", savedProductName);
 
-
-
-
+  //Shipping Charge Case:
 
   if (
     originalMessage.includes("shipping") &&
@@ -172,10 +169,6 @@ console.log("Product Name:", savedProductName);
   const matchedArea = areaCode.find((d) => d.area_orginal === originalMessage);
   const matcharea_original = matchedArea?.area_orginal;
 
-
-
-
-
   const matcharea_charge = matchedArea?.areacode_charge;
 
   const matcharea_delivery = matchedArea?.delivery_method;
@@ -184,8 +177,6 @@ console.log("Product Name:", savedProductName);
   const foundProduct = naming.find(
     (product) => product.product_name.trim() === savedProductName.trim()
   );
-
-
 
   const deliverydate = matchedArea?.delivery_date;
   // console.log("delivery date", deliverydate);
@@ -196,10 +187,13 @@ console.log("Product Name:", savedProductName);
   const deliveryDates = deliverydate?.split(", ");
 
   // Convert string dates into date objects
-  const deliveryDateObjects = deliveryDates?.map((dateStr) => new Date(dateStr));
+  const deliveryDateObjects = deliveryDates?.map(
+    (dateStr) => new Date(dateStr)
+  );
 
   // Sort delivery dates based on proximity to today's date
-  const sortedDates = deliveryDateObjects?.filter((date) => date >= today)
+  const sortedDates = deliveryDateObjects
+    ?.filter((date) => date >= today)
     .sort((a, b) => a - b);
 
   // Get the closest three dates
@@ -242,8 +236,12 @@ console.log("Product Name:", savedProductName);
   const totalCharge = chargeAsNumber + valueAsNumber;
   const totall_main_price = productpricetotall + totalCharge;
 
-   messageString = "PRODUCT PRICE: " + valueofproduct + " GRAND TOTAL: " + totall_main_price;
+  messageString =
+    "AREA CHARGE: "+matcharea_charge +" DELIVERY CHARGE: "+ valueof+ " SHIPPING CHARGE: "+ totalCharge +" PRODUCT PRICE: " + valueofproduct + " GRAND TOTAL: " + totall_main_price;
 
+
+
+  //AREA original and AREA CODE  
   if (originalMessage.includes(matcharea_original)) {
     originalMessage = matcharea_original;
 
@@ -269,18 +267,11 @@ console.log("Product Name:", savedProductName);
 app.post("/api/", async (req, res) => {
   let message = req.body.message;
 
-
   const codeprice = areaCode.find((d) => d.area_code === message);
-
 
   if (codeprice?.area_orginal) {
     message = codeprice.area_orginal;
-   }
-
-
-
-
-
+  }
 
   message = augmentMessageWithInstructions(message);
 
@@ -304,11 +295,15 @@ app.post("/api/", async (req, res) => {
 
     res.json({
       botResponse:
+        +(messageString ? "And " + messageString : "") +
         "\n\n" +
         "System:" +
-        demoResponse.response +
-        "And " +messageString
+        demoResponse.response+
+        "\n\n" +
+        "Dataset: " + final_result
+
     });
+
     return;
   }
 
